@@ -1,0 +1,65 @@
+# tên service, là tên lambda function trên service Lambda AWS
+service: demo
+
+# Lấy biến môi trường từ file .env nằm cùng thư mục
+useDotenv: true
+
+provider:
+  name: aws
+  # khai báo môi trường chạy code
+  runtime: nodejs14.x
+  lambdaHashingVersion: 20201221
+  stage: ${opt:stage, 'develop'}
+  region: ${opt:region, 'us-east-2'}
+  # Khai báo biên môi trường của app
+  # Các biến AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY không được đặt vì nó là reversed keyword
+  # self: object file, vd self.service có giá trị là demo
+  # env: lấy giá trị từ file .env
+  environment:
+    SERVICE: ${self:service}
+    STAGE: ${self:provider.stage}
+    REGION: ${self:provider.region}
+    NO_COLOR: ${env:NO_COLOR, 'true'}
+    AWS_DYNAMO_ACCESS_KEY_ID: ${env:AWS_DYNAMO_ACCESS_KEY_ID, 'accessKey'}
+    AWS_DYNAMO_SECRET_ACCESS_KEY: ${env:AWS_DYNAMO_SECRET_ACCESS_KEY, 'accessKey'}
+    AWS_DYNAMO_DEFAULT_REGION: ${env:AWS_DYNAMO_DEFAULT_REGION, 'us-east-2'}
+  # Khai báo gateway
+  # Ở đây để demo, sẽ tạo gateway trùng với tên service
+  apiGateway:
+    shouldStartNameWithService: true
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:DescribeTable
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: arn:aws:dynamodb:${self:provider.region}:*:*
+
+plugins:
+ - serverless-plugin-typescript
+ - serverless-plugin-optimize
+ - serverless-offline
+
+package:
+  patterns:
+    - '!node_modules/typescript/**'
+    - '!node_modules/@types/**'
+
+functions:
+  index-function:
+    handler: src/lambda.handler
+    events:
+      - http:
+          cors: true
+          path: '{proxy+}'
+          method: any
+
+# Khai báo khi muốn tự động tạo bảng trên service Dynamodb AWS
+# Tuy nhiên nếu đã tạo rồi sẽ bị trả về lỗi khi deploy
+# Do vậy, tốt nhất là tạo trực tiếp trên web
+# resources:
+#   - ${file(resource/dynamodb.yml)}
